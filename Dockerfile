@@ -11,7 +11,10 @@ FROM node:20-alpine AS runtime
 
 WORKDIR /app
 
-RUN apk upgrade --no-cache
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules/npm \
+    && rm -f /usr/local/bin/npm \
+    && rm -f /usr/local/bin/npx
 
 COPY --from=build /app/node_modules ./node_modules
 
