@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const client = require("prom-client");
 const products = require("./data/products");
 
 const app = express();
@@ -10,6 +11,70 @@ const STORE_NAME = process.env.STORE_NAME || "My Store";
 
 app.use(cors());
 app.use(express.json());
+// Prometheus monitoring
+const register = new client.Registry();
+
+client.collectDefaultMetrics({ register });
+
+const httpRequestsTotal = new client.Counter({
+  name: "http_requests_total",
+  help: "Total number of HTTP requests",
+  labelNames: ["method", "route", "status_code"],
+  registers: [register],
+});
+
+const httpErrorsTotal = new client.Counter({
+  name: "http_errors_total",
+  help: "Total number of HTTP error responses",
+  labelNames: ["method", "route", "status_code"],
+  registers: [register],
+});
+
+const httpRequestDuration = new client.Histogram({
+  name: "http_request_duration_seconds",
+  help: "HTTP request duration in seconds",
+  labelNames: ["method", "route", "status_code"],
+  buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5],
+  registers: [register],
+});
+
+// Measure HTTP requests and response times
+app.use((req, res, next) => {
+  if (req.path === "/metrics") {
+    return next();
+  }
+
+  const start = process.hrtime.bigint();
+
+  res.on("finish", () => {
+    const duration = Number(process.hrtime.bigint() - start) / 1e9;
+
+    const labels = {
+      method: req.method,
+      route: req.route?.path || "unmatched",
+      status_code: String(res.statusCode),
+    };
+
+    httpRequestsTotal.inc(labels);
+    httpRequestDuration.observe(labels, duration);
+
+    if (res.statusCode >= 400) {
+      httpErrorsTotal.inc(labels);
+    }
+  });
+
+  next();
+});
+
+// Prometheus metrics endpoint
+app.get("/metrics", async (req, res) => {
+  try {
+    res.set("Content-Type", register.contentType);
+    res.end(await register.metrics());
+  } catch (error) {
+    res.status(500).end("Unable to collect metrics");
+  }
+});
 
 const validateApiKey = (req, res, next) => {
   const key = req.headers["x-api-key"];
