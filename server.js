@@ -71,7 +71,7 @@ app.get("/metrics", async (req, res) => {
   try {
     res.set("Content-Type", register.contentType);
     res.end(await register.metrics());
-  } catch (error) {
+  } catch  {
     res.status(500).end("Unable to collect metrics");
   }
 });
@@ -83,7 +83,10 @@ const validateApiKey = (req, res, next) => {
   }
   next();
 };
-
+// Health endpoint for Kubernetes readiness and liveness probes
+app.get("/api/health", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
 // GET /api/store — store info
 app.get("/api/store", (req, res) => {
   res.json({ name: STORE_NAME, totalProducts: products.length });
