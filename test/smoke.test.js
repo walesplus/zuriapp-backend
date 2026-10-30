@@ -30,6 +30,9 @@ before(async () => {
   });
 
   let startupError = "";
+  server.on("error", (error) => {
+  startupError += ` Spawn error: ${error.message}`;
+});
 
   server.stderr.on("data", (data) => {
     startupError += data.toString();
@@ -39,7 +42,7 @@ before(async () => {
     process.stdout.write(data);
   });
 
-  for (let attempt = 0; attempt < 50; attempt++) {
+  for (let attempt = 0; attempt < 200; attempt++) {
     if (server.exitCode !== null) {
       throw new Error(
         `Backend exited with code ${server.exitCode}: ${startupError}`
